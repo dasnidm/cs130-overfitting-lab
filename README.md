@@ -10,7 +10,9 @@ With Node.js 22 or newer, run `npm start` and open `http://127.0.0.1:4173`. No d
 
 Change **Model complexity** (degrees 1–12) while keeping the data fixed. Compare training and test RMSE. **Training campaigns** controls sample size (20–160), and **Sale duration** controls the number of days (2–10). A duration change regenerates the experiment with different markdown steps and arrival timing, holding 180 potential customers constant.
 
-**50-sample average** shows the arithmetic mean of 50 separate RMSE values at each degree; the fitted curve and example still display the first sample. **New sample** changes the seed; **Reset** restores defaults. **Copy this experiment** shares settings and seed. **Download run** saves the complete displayed training/test data, fitted coefficients, error tables, and the example campaign's people, items, and transactions as JSON. All 2,000 test campaigns are scored; the optional overlay displays the first 80.
+The main **Overfitting: the error U-curve** panel shows training and test RMSE against degree. It defaults to **50-sample average**, the arithmetic mean of 50 separate RMSE values at each degree. The observed minimum is marked, with cards comparing degrees 1, the minimum, and 12. Labels describe whether the displayed results actually fall and rise; no U-shape is imposed. **Zoom error range** enlarges the vertical differences with explicitly labeled limits; turn it off for a zero-based axis. **Log scale** is available for extreme errors.
+
+**Inspect the revenue fit for the selected degree** expands the fitted curve for the first sample; the customer example also remains the first sample. **New sample** changes the seed; **Reset** restores defaults, including the average view. **Copy this experiment** shares settings and seed. **Download run** saves the complete displayed training/test data, fitted coefficients, error tables, and the example campaign's people, items, and transactions as JSON. All 2,000 test campaigns are scored; the optional overlay displays the first 80.
 
 ## Data generation
 
@@ -46,7 +48,7 @@ One observation is one whole campaign: final markdown is x, total revenue is y. 
 
 Nested OLS training error cannot increase on fixed data, apart from rounding. A higher degree can fit random customer variation and predict independent campaigns less accurately. There is no guarantee of a U-shaped test curve for every seed or duration. Unconstrained predictions can be negative or extreme; all full predictions enter RMSE. The fitted line is visually clipped to the plot bounds when needed, with a notice. A log axis plots values below €0.01 at the floor; the table and export retain full values.
 
-At seed 130, n=80, T=5:
+In the **One sample** view at seed 130, n=80, T=5:
 
 | Degree | Training RMSE | Test RMSE |
 | --- | ---: | ---: |
@@ -54,7 +56,7 @@ At seed 130, n=80, T=5:
 | 2 | €21.85 | €23.66 |
 | 12 | €19.26 | €29.55 |
 
-Across 50 samples, degrees 2 and 12 have mean test RMSE €22.77 and €28.95, respectively. These are simulation results, not HUMANA business estimates or a user-completed AI audit.
+In the default **50-sample average** view, degrees 1, 2, and 12 have mean test RMSE €28.74, €22.77, and €28.95. The test curve falls and then rises, while training error falls from €20.79 at degree 2 to €19.32 at degree 12. These are simulation results, not HUMANA business estimates or a user-completed AI audit.
 
 The test curve is for teaching. Choosing degree after inspecting it requires another untouched test set for a final assessment. Real campaigns may differ in customer behavior, inventory, budgets, and arrivals, so this simulation cannot select a real optimal promotion.
 

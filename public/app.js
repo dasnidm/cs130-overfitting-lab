@@ -1,4 +1,4 @@
-import { DEFAULTS, REPEATS, TEST_SIZE, cleanConfig } from './stats.js';
+import { DEFAULTS, REPEATS, TEST_SIZE, cleanConfig, summarizeErrors } from './stats.js';
 import { renderFit, renderErrors, renderDistribution } from './charts.js';
 const $ = id => document.getElementById(id);
 const state = cleanConfig(Object.fromEntries(new URLSearchParams(location.search)));
@@ -11,10 +11,11 @@ function syncControls() {
   $('duration-value').textContent=`${state.duration} days`; $('seed-value').textContent=state.seed;
   $('degree-pill').textContent=`Degree ${state.degree}`;
   $('log-scale').checked=state.log;
+  $('zoom-errors').checked=state.zoom; $('zoom-errors').disabled=state.log;
   $('single-mode').setAttribute('aria-pressed',String(state.mode==='single'));
   $('average-mode').setAttribute('aria-pressed',String(state.mode==='average'));
-  const params=new URLSearchParams({n:state.n,degree:state.degree,duration:state.duration,seed:state.seed,mode:state.mode,log:state.log?'1':'0'});
-  history.replaceState(null,'',`${location.pathname}?${params}`);
+  const params=new URLSearchParams({n:state.n,degree:state.degree,duration:state.duration,seed:state.seed,mode:state.mode,log:state.log?'1':'0',zoom:state.zoom?'1':'0'});
+  history.replaceState(null,'',`${location.pathname}?${params}${location.hash}`);
 }
 
 function render() {
@@ -24,13 +25,14 @@ function render() {
   renderCampaign();
   const metrics=state.mode==='average'?average:sample.metrics;
   if(!metrics){
-    $('error-chart').innerHTML='';
+    resetCurveSummary();
     $('train-metric').textContent='—'; $('test-metric').textContent='—';
     $('interpretation').textContent='Computing 50 independent samples…';
     $('metric-table').replaceChildren();
     return;
   }
-  renderErrors($('error-chart'),metrics,state.degree,state.log);
+  renderErrors($('error-chart'),metrics,state.degree,state.log,state.zoom);
+  renderCurveSummary(metrics);
   const current=metrics[state.degree-1], quadratic=metrics[1];
   $('train-metric').textContent=money(current.train);
   $('test-metric').textContent=money(current.test);
@@ -46,9 +48,28 @@ function render() {
     message=`${scope}, this degree does not clearly worsen test error relative to degree 2 (${money(quadratic.test)}). Try another sample or compare the 50-sample average.`;
   }
   $('interpretation').textContent=message;
-  $('mode-note').textContent=(state.mode==='average'?'Mean RMSE across 50 training/test pairs. The fitted curve on the left shows one sample.':'Same training campaigns and same 2,000 test campaigns at every degree. Lower RMSE is better.')+(state.log?' Values below €0.01 are drawn at the bottom of the log axis; exact values are in the table.':'');
+  $('mode-note').textContent=(state.mode==='average'?'Mean RMSE across 50 training/test pairs. Each pair uses the same data at every degree.':'Same training campaigns and same 2,000 test campaigns at every degree.')+(state.log?' Log axis: values below €0.01 share the floor.':state.zoom?' Zoomed vertical axis; it may start above zero.':' Vertical axis starts at zero.')+' Exact values are in the table below.';
   $('table-caption').textContent=`${state.mode==='average'?'Mean RMSE across 50 samples':'One-sample RMSE'} by polynomial degree (€). Selected degree is highlighted.`;
   $('metric-table').innerHTML=metrics.map(m=>`<tr${m.degree===state.degree?' class="selected"':''}><th scope="row">${m.degree}</th><td>${m.train.toPrecision(7)}</td><td>${m.test.toPrecision(7)}</td></tr>`).join('');
+}
+
+function resetCurveSummary() {
+  $('error-chart').innerHTML='<div class="curve-loading">Calculating the error curve…<br><small>The 50-sample average takes a few seconds.</small></div>';
+  $('curve-shape').textContent='Calculating…';
+  $('curve-explanation').textContent='Every degree is evaluated on the same data within each run.';
+  for(const id of ['first-error','best-error','last-error']) $(id).textContent='—';
+  $('best-degree').textContent='Lowest test error';
+}
+
+function renderCurveSummary(metrics) {
+  const s=summarizeErrors(metrics);
+  $('curve-shape').textContent=s.uShape?'Test error falls, then rises':s.rises?'Test error rises with complexity':'No rising right side in this run';
+  $('first-error').textContent=money(s.first.test);
+  $('best-error').textContent=money(s.best.test);
+  $('last-error').textContent=money(s.last.test);
+  $('best-degree').textContent=`Lowest · degree ${s.best.degree}`;
+  const falling=s.falls?`Degree 1 → ${s.best.degree}: test error falls from ${money(s.first.test)} to ${money(s.best.test)}. `:'';
+  $('curve-explanation').textContent=falling+(s.overfits?`Degree ${s.best.degree} → 12: test error rises to ${money(s.last.test)}, while training error falls from ${money(s.best.train)} to ${money(s.last.train)}. This is evidence of overfitting.`:s.rises?'Test error is higher at degree 12. Compare the training curve before drawing a conclusion.':'A full U-shape is not visible here. Try another sample or compare the 50-sample average.');
 }
 
 function renderCampaign() {
@@ -69,6 +90,7 @@ function calculate() {
   $('status').textContent='Calculating new samples…';
   $('train-metric').textContent='—'; $('test-metric').textContent='—';
   $('fit-chart').replaceChildren(); $('error-chart').replaceChildren(); $('metric-table').replaceChildren();
+  resetCurveSummary();
   $('campaign-table').replaceChildren();$('scores-chart').replaceChildren();$('waiting-chart').replaceChildren();$('campaign-summary').textContent='Simulating customer choices…';
   $('interpretation').textContent='Calculating…';
   syncControls();
@@ -97,6 +119,7 @@ for(const [id,key] of [['sample-size','n'],['duration','duration']])$(id).addEve
   syncControls();$('download').disabled=true;$('status').textContent='Updating simulation…';
   $('train-metric').textContent='—';$('test-metric').textContent='—';
   $('fit-chart').replaceChildren();$('error-chart').replaceChildren();$('metric-table').replaceChildren();
+  resetCurveSummary();
   $('campaign-table').replaceChildren();$('scores-chart').replaceChildren();$('waiting-chart').replaceChildren();$('campaign-summary').textContent='Simulating customer choices…';
   $('interpretation').textContent='Updating simulation…';
   clearTimeout(timer);timer=setTimeout(calculate,100);
@@ -107,6 +130,7 @@ $('reset').addEventListener('click',()=>{Object.assign(state,DEFAULTS);$('show-t
 $('single-mode').addEventListener('click',()=>{state.mode='single';render();});
 $('average-mode').addEventListener('click',()=>{state.mode='average';render();});
 $('log-scale').addEventListener('change',event=>{state.log=event.target.checked;render();});
+$('zoom-errors').addEventListener('change',event=>{state.zoom=event.target.checked;render();});
 $('show-test').addEventListener('change',render);
 $('share').addEventListener('click',async()=>{
   try{await navigator.clipboard.writeText(location.href);$('status').textContent='Experiment link copied. It includes your settings and seed.';}
@@ -115,7 +139,7 @@ $('share').addEventListener('click',async()=>{
 $('download').addEventListener('click',()=>{
   if(!sample||!average)return;
   const artifact={
-    app:'Sales Forecast Lab',version:'2.0.0',createdAt:new Date().toISOString(),url:location.href,
+    app:'Sales Forecast Lab',version:'2.1.0',createdAt:new Date().toISOString(),url:location.href,
     synthetic:true,config:{...state},testSize:TEST_SIZE,repeats:REPEATS,
     dataGeneratingProcess:{stock:120,customers:180,score:'Round Normal(5.5,1.5²) after rejecting values outside [1,10]',weight:'Beta(2,2)',arrivals:'Each customer first arrives on a uniform random campaign day; non-buyers return daily while eligible stock exists',schedule:'d ~ Uniform(10,80); p_t=6[1-(d/100)(t-1)/(T-1)]',choice:'q=10/(10+S); s=(p_t-p_(t+1))/p_t; buy the highest-score eligible item if (1-w)q >= ws; otherwise wait. Buy on the final day if eligible stock remains.',revenue:'Sum of price × units actually sold over all campaign days',assumptions:'One item per customer, sufficient budget, shared product ranking, no replenishment, known schedule; randomized daily queue. Risk is an assumed perception, not an estimated stockout probability.'},
     coefficientBasis:'Legendre polynomials in z; index j is degree j; models array includes degree 0',
@@ -129,4 +153,12 @@ $('download').addEventListener('click',()=>{
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   $('status').textContent='Run downloaded with settings, observations, coefficients, and RMSE tables.';
 });
+let errorWidth=0;
+new ResizeObserver(entries=>{
+  const width=Math.round(entries[0].contentRect.width);
+  if(width===errorWidth)return;
+  errorWidth=width;
+  const metrics=state.mode==='average'?average:sample?.metrics;
+  if(metrics)renderErrors($('error-chart'),metrics,state.degree,state.log,state.zoom);
+}).observe($('error-chart'));
 calculate();

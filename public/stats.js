@@ -3,7 +3,7 @@ export { rng } from './market.js';
 export const MAX_DEGREE = 12;
 export const TEST_SIZE = 2000;
 export const REPEATS = 50;
-export const DEFAULTS = Object.freeze({ n: 80, degree: 8, duration: 5, seed: 130, mode: 'single', log: false });
+export const DEFAULTS = Object.freeze({ n: 80, degree: 8, duration: 5, seed: 130, mode: 'average', log: false, zoom: true });
 
 export function cleanConfig(input = {}) {
   const integer = (value, fallback, min, max) => {
@@ -15,8 +15,9 @@ export function cleanConfig(input = {}) {
     degree: integer(input.degree, DEFAULTS.degree, 1, MAX_DEGREE),
     duration: integer(input.duration, DEFAULTS.duration, 2, 10),
     seed: integer(input.seed, DEFAULTS.seed, 0, 4294967295),
-    mode: input.mode === 'average' ? 'average' : 'single',
-    log: input.log === true || input.log === '1'
+    mode: input.mode === 'single' ? 'single' : 'average',
+    log: input.log === true || input.log === '1',
+    zoom: input.zoom !== false && input.zoom !== '0'
   };
 }
 
@@ -74,6 +75,16 @@ export function fitModels(data, maxDegree = MAX_DEGREE) {
 
 export function rmse(data, coefficients) {
   return Math.sqrt(data.reduce((sum, row) => sum + (row.y - predict(coefficients, row.x)) ** 2, 0) / data.length);
+}
+
+export function summarizeErrors(metrics) {
+  const first = metrics[0], last = metrics.at(-1);
+  const best = metrics.reduce((a, b) => b.test < a.test ? b : a);
+  const tolerance = Math.max(1e-9, best.test * 1e-6);
+  const falls = best.degree > first.degree && first.test - best.test > tolerance;
+  const rises = last.degree > best.degree && last.test - best.test > tolerance;
+  const overfits = rises && best.train - last.train > tolerance;
+  return { first, best, last, falls, rises, overfits, uShape: falls && rises };
 }
 
 export function simulate(input) {

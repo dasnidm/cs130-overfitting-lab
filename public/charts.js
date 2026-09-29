@@ -1,4 +1,4 @@
-import { predict } from './stats.js';
+import { predict, summarizeErrors } from './stats.js';
 const GREEN = '#184d3d', ORANGE = '#b9572c', GREY = '#98a28f';
 const W = 550, H = 318, L = 61, R = 16, T = 21, B = 48;
 const PW = W - L - R, PH = H - T - B;
@@ -55,28 +55,43 @@ export function renderDistribution(target, series, labels, title, id) {
   target.innerHTML = svg(`${title}. ${series.map(s => `${s.name}: ${s.values.join(', ')}`).join('; ')}`, body, id);
 }
 
-export function renderErrors(target, metrics, degree, log) {
-  const sx = x => L+(x-1)/11*PW;
-  const maximum = Math.max(...metrics.flatMap(m=>[m.train,m.test]));
+export function renderErrors(target, metrics, degree, log, zoom = true) {
+  const width = Math.max(280, Math.round(target.clientWidth || 700));
+  const height = width < 600 ? 300 : 350;
+  const left = 52, right = 18, top = 35, bottom = 51;
+  const pw = width - left - right, ph = height - top - bottom;
+  const sx = x => left+(x-1)/11*pw;
+  const values = metrics.flatMap(m=>[m.train,m.test]);
+  const minimum = Math.min(...values), maximum = Math.max(...values);
+  const summary = summarizeErrors(metrics);
   let sy, yticks;
   if (log) {
     const low = -2;
     const high = Math.max(1,Math.ceil(Math.log10(Math.max(maximum,1))));
-    sy = value => T+PH*(1-(Math.log10(Math.max(10**low,value))-low)/(high-low));
+    sy = value => top+ph*(1-(Math.log10(Math.max(10**low,value))-low)/(high-low));
     yticks = Array.from({length:high-low+1},(_,i)=>10**(low+i));
     if (yticks.length>7) yticks=yticks.filter((_,i)=>i%Math.ceil(yticks.length/7)===0 || i===yticks.length-1);
   } else {
-    const step = 10**Math.floor(Math.log10(Math.max(maximum,1)/4));
-    const ymax = Math.ceil(Math.max(maximum,1)/4/step)*step*4;
-    sy = value => T+PH*(1-value/ymax);
-    yticks = Array.from({length:5},(_,i)=>ymax*i/4);
+    const span = Math.max(maximum-minimum, 1);
+    const ymin = zoom ? Math.max(0,minimum-span*.14) : 0;
+    const ymax = Math.max(ymin+1, maximum+span*.12);
+    sy = value => top+ph*(1-(value-ymin)/(ymax-ymin));
+    yticks = Array.from({length:5},(_,i)=>ymin+(ymax-ymin)*i/4);
   }
-  let body=grid(metrics.map(m=>m.degree),yticks,sx,sy,'Polynomial degree',log?'RMSE (€ · log scale)':'RMSE (€)');
-  body+=line(sx(degree),T,sx(degree),H-B,'#cdd5c5','stroke-dasharray="4 4"');
+  let body = text(left,14,`Lowest test error: degree ${summary.best.degree}`,'start','font-weight="600"');
+  body += text(width-right,14,`Selected: ${degree}`,'end');
+  if(summary.overfits) body += `<rect x="${sx(summary.best.degree)}" y="${top}" width="${width-right-sx(summary.best.degree)}" height="${ph}" fill="#fbf1eb"/>`;
+  for(const tick of yticks) body += line(left,sy(tick),width-right,sy(tick))+text(left-9,sy(tick)+4,short(tick),'end');
+  for(const m of metrics) body += text(sx(m.degree),height-bottom+21,m.degree);
+  body += text(left+pw/2,height-6,'Model complexity (polynomial degree)');
+  body += line(sx(degree),top,sx(degree),height-bottom,'#97a591','stroke-dasharray="3 4"');
+  body += line(sx(summary.best.degree),top,sx(summary.best.degree),height-bottom,ORANGE,'stroke-dasharray="3 4" opacity=".65"');
   body+=path(metrics.map(m=>[sx(m.degree),sy(m.train)]),GREEN);
   body+=path(metrics.map(m=>[sx(m.degree),sy(m.test)]),ORANGE,'stroke-dasharray="6 4"');
+  body+=circle(sx(summary.best.degree),sy(summary.best.test),'white',8,`stroke="${ORANGE}" stroke-width="2"`);
   for(const m of metrics){
     for(const key of ['train','test'])body+=circle(sx(m.degree),sy(m[key]),key==='train'?GREEN:ORANGE,m.degree===degree?5:2.8,`stroke="white" stroke-width="1.5"`);
   }
-  target.innerHTML=svg(`Training and test RMSE for degrees 1 to 12. Degree ${degree} is selected. ${log?'Logarithmic':'Linear'} vertical scale. Exact results are in the table below.`,body,'errors');
+  const title=`Training and test RMSE in euros for degrees 1 to 12. Lowest test error at degree ${summary.best.degree}. Selected degree ${degree}. ${log?'Logarithmic':zoom?'Zoomed linear':'Linear from zero'} vertical scale. ${summary.uShape?'Test error falls and then rises.':'A full U-shape is not present in this run.'}`;
+  target.innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="errors-title"><title id="errors-title">${esc(title)}</title>${body}</svg>`;
 }

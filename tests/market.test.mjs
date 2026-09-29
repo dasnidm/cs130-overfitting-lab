@@ -100,5 +100,5 @@ test('default single and repeated experiments show overfitting without a prescri
 test('URL inputs are finite and bounded', () => {
   const c=cleanConfig({n:-100,degree:'Infinity',duration:999,seed:'<script>',mode:'<img>',log:'1'});
   assert.equal(c.n,20);assert.equal(c.degree,DEFAULTS.degree);assert.equal(c.duration,10);
-  assert.equal(c.seed,DEFAULTS.seed);assert.equal(c.mode,'single');assert.equal(c.log,true);
+  assert.equal(c.seed,DEFAULTS.seed);assert.equal(c.mode,DEFAULTS.mode);assert.equal(c.log,true);
 });
