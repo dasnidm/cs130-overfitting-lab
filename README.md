@@ -2,62 +2,70 @@
 
 [Open the live app](https://cs130-overfitting-lab.vercel.app) · [Source code](https://github.com/dasnidm/cs130-overfitting-lab)
 
-An interactive CS130 Component 2 demonstration of overfitting, using **synthetic** discount and daily revenue observations. Inspired by the HUMANA promotion question in Component 1. No internal or observed HUMANA sales records are included. The simulated relationship is not a business estimate or a recommendation for an optimal discount.
+CS130 Component 2: overfitting with synthetic countdown sales. Version 2 generates revenue from customer decisions and finite inventory. No HUMANA sales records are used; parameter values and behavioral rules are teaching assumptions.
 
-## Run
+## Run and compare
 
-Open the deployed app, or run locally with Node.js 22 or newer:
+With Node.js 22 or newer, run `npm start` and open `http://127.0.0.1:4173`. No dependencies or API keys are needed. `npm run build` creates the static `dist/` site; `npm test` verifies distributions, purchase rules, conservation, reproducibility, numerical fitting, and prediction error.
 
-```sh
-npm start
-```
+Change **Model complexity** (degrees 1–12) while keeping the data fixed. Compare training and test RMSE. **Training campaigns** controls sample size (20–160), and **Sale duration** controls the number of days (2–10). A duration change regenerates the experiment with different markdown steps and arrival timing, holding 180 potential customers constant.
 
-Open `http://127.0.0.1:4173`. There are no package dependencies, API keys, external chart services, or installation steps. `npm run build` copies the static application into `dist/`. `npm test` runs the numerical checks.
+**50-sample average** shows the arithmetic mean of 50 separate RMSE values at each degree; the fitted curve and example still display the first sample. **New sample** changes the seed; **Reset** restores defaults. **Copy this experiment** shares settings and seed. **Download run** saves the complete displayed training/test data, fitted coefficients, error tables, and the example campaign's people, items, and transactions as JSON. All 2,000 test campaigns are scored; the optional overlay displays the first 80.
 
-Move **Model complexity** from degree 1 to 12 while keeping the other controls fixed. Compare the fitted curve, training RMSE, and independent test RMSE. The sample remains unchanged as degree changes. Adjust **Training observations** or **Random variation**, or choose **New sample**, to explore different conditions. The **50-sample average** switch changes only the error comparison and reported RMSE; the fitted curve still displays the first sample. Use **Reset** to restore the defaults. Zero noise is a useful counterexample to an inevitable U-shape.
+## Data generation
 
-**Copy this experiment** saves the settings and random seed in a shareable URL. **Download run** saves a JSON artifact with those settings, the displayed sample's complete training/test data, fitted coefficients, and both RMSE tables. The independent test set has 2,000 observations, even though the optional test overlay shows only its first 80 points. The exact-values table is available below the plots. For very large errors, switch the RMSE plot to a log scale; values below €0.01 then share the bottom plotting position, while the table and export retain the computed values.
+### Inventory and customers
 
-## Statistical design
+- Start each campaign with 120 items and 180 potential customers.
+- Draw each item's attractiveness and each customer's minimum acceptable score independently from Normal(5.5, 1.5²), reject draws outside [1, 10], and round to an integer. Thus 5 and 6 are the population modes.
+- Each customer has an independent, fixed waiting weight `w ~ Beta(2,2)`. The generator uses a ratio of two independent Gamma(2,1) draws.
+- Independently assign each customer's first arrival uniformly across the campaign days. Waiting customers return each following day; active customers are shuffled each day.
+- All customers share the product ranking, can afford €6, and buy at most one item. There is no replenishment.
 
-The assumed data-generating process is
+### Prices and decisions
+
+For each campaign, independently draw final markdown `d ~ Uniform(10,80)`, in percentage points. For duration T and day t=1,...,T:
 
 ```text
-discount ~ Uniform(10, 80)          # percentage points
-z = (discount - 45) / 35
-mean revenue = 2200 + 400z - 950z²
-revenue = mean revenue + ε
-ε ~ Normal(0, σ²), independent across observations
+p_t = 6[1 - (d/100)(t-1)/(T-1)]
+S = remaining items with attractiveness >= this customer's threshold
+q = 10/(10+S)
+s = (p_t - p_(t+1))/p_t
+buy now if (1-w)q >= ws; otherwise return tomorrow
 ```
 
-The quadratic mean is selected as a transparent teaching assumption. Revenue is generated with additive Gaussian noise and is not clipped at zero. Unconstrained polynomial predictions may be negative or extreme; the app preserves these in RMSE calculations. Parts of the fitted line outside the plot's revenue range are clipped visually and identified by a caption.
+The value q is an assumed perception of the risk of finding no acceptable item tomorrow. It rises with scarcity; the scale 10 is a fixed illustration parameter, not an estimated stockout probability. Recompute S at each customer's turn. A buyer selects the highest-scoring acceptable item, and that item is immediately removed. A customer with S=0 leaves permanently. On the final day, a customer with S>0 buys.
 
-For each fixed training sample, unregularized ordinary least squares models of degrees 1 through 12 form nested model spaces. Training residual sum of squares, and therefore training RMSE, cannot increase as terms are added, except for floating-point rounding. A flexible model can follow sample noise, which is absent from independently generated test outcomes. Test RMSE can then increase even while training RMSE decreases. The test set never enters the fit.
+Daily revenue equals price times actual purchases; campaign revenue is the sum across days. Prices are computed without cent rounding, with two decimals used only for display. Random inventory, preferences, arrivals, and queue order produce revenue variation. There is no imposed revenue curve or added Gaussian revenue noise.
 
-The implementation uses a Legendre polynomial basis on the scaled input, and QR fitting via modified Gram-Schmidt with a second orthogonalization pass. These are the same polynomial model spaces as powers of the input, with better numerical scaling. No regularization or hand-shaped error curves are used. The displayed RMSE is `sqrt(sum((observed - predicted)^2) / sampleSize)`, in euros, without a degrees-of-freedom correction. It is prediction error, not an estimate of residual standard deviation.
+The separate inspector uses final markdown 200/3%, giving **€6 → €5 → €4 → €3 → €2** at the default five-day duration. This is an illustrative schedule, not a claimed historical HUMANA promotion. Histograms show the actual example draw, which need not exactly match its population distribution.
 
-The average view is the arithmetic mean of the per-sample RMSE over 50 training/test pairs, rather than the square root of pooled MSE. Seeds are deterministic, starting with the displayed seed and incrementing by `0x6D2B79F5` modulo 2³² for each repetition. Within a repetition, all model degrees use identical observations. Training and test streams use distinct seeds.
+## Regression and evaluation
 
-The U-shape is not guaranteed for every finite sample, noise level, or complexity range. At zero noise, a degree-2 polynomial represents the assumed truth, so added terms need not worsen predictions. Small samples can produce severe instability, especially near the ends of the discount range. Changing the distribution of future campaigns would challenge this demonstration's identical-distribution assumption. The test curve is used for educational comparison; selecting a real model based on it would require a further untouched evaluation set or a separate validation procedure.
+One observation is one whole campaign: final markdown is x, total revenue is y. Fit ordinary least squares polynomials of degrees 1–12 to n campaigns and evaluate on 2,000 fresh campaigns from the same process. A Legendre basis with z=(x-45)/35 and twice-orthogonalized modified Gram-Schmidt QR spans the same polynomial spaces as powers of x. No regularization or test outcomes enter the fit.
 
-## Connection to the business question
+Nested OLS training error cannot increase on fixed data, apart from rounding. A higher degree can fit random customer variation and predict independent campaigns less accurately. There is no guarantee of a U-shaped test curve for every seed or duration. Unconstrained predictions can be negative or extreme; all full predictions enter RMSE. The fitted line is visually clipped to the plot bounds when needed, with a notice. A log axis plots values below €0.01 at the floor; the table and export retain full values.
 
-The demonstration supports checking a proposed HUMANA sales model on later campaigns, rather than judging it solely by how closely it fits earlier sales. It does not establish which actual discount schedule is best, and it does not show that a changed discount causes higher revenue. Actual forecasting requires the store's transaction, promotion, and inventory records.
+At seed 130, n=80, T=5:
 
-## Source layout
+| Degree | Training RMSE | Test RMSE |
+| --- | ---: | ---: |
+| 1 | €27.55 | €28.70 |
+| 2 | €21.85 | €23.66 |
+| 12 | €19.26 | €29.55 |
 
-- `public/stats.js`: seeded simulation, polynomial regression, and RMSE.
-- `public/worker.js`: computation outside the main interface thread.
-- `public/charts.js`: accessible SVG charts, with an accompanying data table.
-- `public/app.js`: controls, reproducible URLs, and run export.
-- `public/index.html`, `public/style.css`: interface and explanations.
-- `tests/stats.test.mjs`: polynomial recovery, nested-model monotonicity, independent test data, deterministic replay, zero-noise behavior, and repeated results.
-- `vercel.json`: static build and response headers.
+Across 50 samples, degrees 2 and 12 have mean test RMSE €22.77 and €28.95, respectively. These are simulation results, not HUMANA business estimates or a user-completed AI audit.
 
-## Reference
+The test curve is for teaching. Choosing degree after inspecting it requires another untouched test set for a final assessment. Real campaigns may differ in customer behavior, inventory, budgets, and arrivals, so this simulation cannot select a real optimal promotion.
 
-James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). *An introduction to statistical learning: With applications in R* (2nd ed., §2.2, pp. 31–36). Springer. https://doi.org/10.1007/978-1-0716-1418-1
+## Reproducibility and files
 
-## AI use
+`public/market.js` generates the customer market. `public/stats.js` fits and evaluates models. `public/worker.js` calculates off the UI thread; `public/app.js` handles controls and exports; `public/charts.js` renders SVG.
 
-ChatGPT assisted with the simulation design, implementation, interface, explanations, and automated checks. All sales data are synthetic. This repository does not contain Component 3 audit questions or claim that the student has completed the audit or submitted the assignment.
+The seeded PRNG is Mulberry32. In each split, campaign seeds are (splitSeed + i) modulo 2³²; markdowns use a separate PRNG initialized by splitSeed XOR 0xA341316C. Test splitSeed is seed XOR 0x80000000, making campaign seeds disjoint within a run. The illustrative campaign uses seed XOR 0xC8013EA4. Repeated experiment r=0,...,49 uses (seed + imul(r,0x6D2B79F5)) modulo 2³². Changing degree never changes data. Saved settings, seeds, and the source version reproduce all repeated pairs.
+
+## Reference and AI disclosure
+
+James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). *An introduction to statistical learning: With applications in R* (2nd ed., Section 2.2, pp. 31–36). Springer. https://doi.org/10.1007/978-1-0716-1418-1
+
+ChatGPT assisted with the simulation design, code, interface, tests, and explanations. All sales data are synthetic.

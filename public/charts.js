@@ -1,4 +1,4 @@
-import { predict, trueRevenue } from './stats.js';
+import { predict } from './stats.js';
 const GREEN = '#184d3d', ORANGE = '#b9572c', GREY = '#98a28f';
 const W = 550, H = 318, L = 61, R = 16, T = 21, B = 48;
 const PW = W - L - R, PH = H - T - B;
@@ -18,25 +18,41 @@ function grid(xticks, yticks, sx, sy, xlabel, ylabel) {
 
 export function renderFit(target, sample, degree, showTest) {
   const visible = showTest ? [...sample.train, ...sample.test.slice(0,80)] : sample.train;
-  const ymin = Math.min(0, Math.floor(Math.min(...visible.map(p=>p.y)) / 500) * 500);
-  const ymax = Math.max(3000, Math.ceil(Math.max(...visible.map(p=>p.y)) / 500) * 500);
+  const ymin = 0;
+  const ymax = Math.max(100, Math.ceil(Math.max(...visible.map(p=>p.y)) / 100) * 100);
   const sx = x => L + (x - 10) / 70 * PW;
   const sy = y => T + PH * (1 - (y - ymin) / (ymax - ymin));
   const xticks = [10,20,30,40,50,60,70,80];
   const yticks = Array.from({length:5},(_,i)=>ymin+(ymax-ymin)*i/4);
-  let body = grid(xticks,yticks,sx,sy,'Discount (%)','Daily revenue (€)');
+  let body = grid(xticks,yticks,sx,sy,'Final markdown from €6 (%)','Campaign revenue (€)');
   const xs = Array.from({length:401},(_,i)=>10+70*i/400);
   const predictions = xs.map(x=>predict(sample.models[degree],x));
   const clipped = predictions.some(y=>y<ymin||y>ymax);
   body += `<g clip-path="url(#fit-clip)">`;
   if (showTest) for (const point of sample.test.slice(0,80)) body += circle(sx(point.x),sy(point.y),'none',2.5,`stroke="${ORANGE}" opacity=".45"`);
-  body += path(xs.map(x=>[sx(x),sy(trueRevenue(x))]), GREY, 'stroke-dasharray="3 5"');
   for (const point of sample.train) body += circle(sx(point.x),sy(point.y),GREEN,3,'opacity=".65"');
   // Clamp only SVG coordinates far outside the viewport; never alter predictions or RMSE.
   body += path(xs.map((x,i)=>[sx(x),Math.max(-5000,Math.min(5000,sy(predictions[i])))]),GREEN);
   body += '</g>';
-  target.innerHTML = svg(`Degree ${degree} polynomial fitted to ${sample.train.length} synthetic training days. Discounts from 10 to 80 percent; revenue in euros. Dashed grey line is the assumed true relationship.`,body,'fit');
-  return clipped ? `Curve extends beyond the visible revenue range. Errors still use every full prediction.` : 'The dotted line is the assumed truth, known only because this is a simulation.';
+  target.innerHTML = svg(`Degree ${degree} polynomial fitted to ${sample.train.length} synthetic campaigns. Final markdowns from 10 to 80 percent; total campaign revenue in euros.`,body,'fit');
+  return clipped ? `Curve extends beyond the visible revenue range. Errors still use every full prediction.` : 'Each point is a complete simulated sale, with fresh inventory and customers.';
+}
+
+export function renderDistribution(target, series, labels, title, id) {
+  const maximum = Math.max(...series.flatMap(s => s.values), 1);
+  const ymax = Math.ceil(maximum / 10) * 10;
+  const sx = i => L + (i + .5) / labels.length * PW;
+  const sy = y => T + PH * (1 - y / ymax);
+  let body = grid([], [0, ymax / 2, ymax], sx, sy, title, 'Count');
+  const width = PW / labels.length * .65 / series.length;
+  for (let i = 0; i < labels.length; i++) {
+    body += text(sx(i), H - B + 21, labels[i]);
+    series.forEach((s, j) => {
+      const x = sx(i) - width * series.length / 2 + j * width;
+      body += `<rect x="${x}" y="${sy(s.values[i])}" width="${width - 1}" height="${T + PH - sy(s.values[i])}" fill="${s.color}"><title>${esc(s.name)} · ${esc(labels[i])}: ${s.values[i]}</title></rect>`;
+    });
+  }
+  target.innerHTML = svg(`${title}. ${series.map(s => `${s.name}: ${s.values.join(', ')}`).join('; ')}`, body, id);
 }
 
 export function renderErrors(target, metrics, degree, log) {

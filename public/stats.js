@@ -1,7 +1,9 @@
+import { rng, simulateCampaign } from './market.js';
+export { rng } from './market.js';
 export const MAX_DEGREE = 12;
 export const TEST_SIZE = 2000;
 export const REPEATS = 50;
-export const DEFAULTS = Object.freeze({ n: 80, degree: 8, noise: 140, seed: 130, mode: 'single', log: false });
+export const DEFAULTS = Object.freeze({ n: 80, degree: 8, duration: 5, seed: 130, mode: 'single', log: false });
 
 export function cleanConfig(input = {}) {
   const integer = (value, fallback, min, max) => {
@@ -11,39 +13,18 @@ export function cleanConfig(input = {}) {
   return {
     n: integer(input.n, DEFAULTS.n, 20, 160),
     degree: integer(input.degree, DEFAULTS.degree, 1, MAX_DEGREE),
-    noise: integer(input.noise, DEFAULTS.noise, 0, 250),
+    duration: integer(input.duration, DEFAULTS.duration, 2, 10),
     seed: integer(input.seed, DEFAULTS.seed, 0, 4294967295),
     mode: input.mode === 'average' ? 'average' : 'single',
     log: input.log === true || input.log === '1'
   };
 }
 
-export function rng(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6D2B79F5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function gaussian(random) {
-  return Math.sqrt(-2 * Math.log(Math.max(Number.MIN_VALUE, random()))) * Math.cos(2 * Math.PI * random());
-}
-
-// An assumed relationship for teaching, not an estimate of HUMANA's sales.
-export function trueRevenue(discount) {
-  const z = (discount - 45) / 35;
-  return 2200 + 400 * z - 950 * z * z;
-}
-
-export function generateData(n, noise, seed) {
+export function generateData(n, duration, seed) {
   const xRandom = rng(seed ^ 0xA341316C);
-  const eRandom = rng(seed ^ 0xC8013EA4);
-  return Array.from({ length: n }, () => {
+  return Array.from({ length: n }, (_, i) => {
     const x = 10 + 70 * xRandom();
-    return { x, y: trueRevenue(x) + noise * gaussian(eRandom) };
+    return simulateCampaign(x, duration, (seed + i) >>> 0);
   });
 }
 
@@ -97,13 +78,15 @@ export function rmse(data, coefficients) {
 
 export function simulate(input) {
   const config = cleanConfig(input);
-  const train = generateData(config.n, config.noise, config.seed);
-  const test = generateData(TEST_SIZE, config.noise, (config.seed ^ 0x9E3779B9) >>> 0);
+  const train = generateData(config.n, config.duration, config.seed);
+  // Disjoint campaign seeds for the two splits, with independent predictor draws.
+  const test = generateData(TEST_SIZE, config.duration, (config.seed ^ 0x80000000) >>> 0);
   const models = fitModels(train);
   const metrics = models.slice(1).map((coefficients, index) => ({
     degree: index + 1, train: rmse(train, coefficients), test: rmse(test, coefficients)
   }));
-  return { train, test, models, metrics };
+  const example = simulateCampaign(200 / 3, config.duration, (config.seed ^ 0xC8013EA4) >>> 0, true);
+  return { train, test, models, metrics, example };
 }
 
 export function repeatSimulation(input, repeats = REPEATS) {
