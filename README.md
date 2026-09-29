@@ -1,5 +1,7 @@
 # Sales Forecast Lab
 
+[Open the live app](https://cs130-overfitting-lab.vercel.app) · [Source code](https://github.com/dasnidm/cs130-overfitting-lab)
+
 An interactive CS130 Component 2 demonstration of overfitting, using **synthetic** discount and daily revenue observations. Inspired by the HUMANA promotion question in Component 1. No internal or observed HUMANA sales records are included. The simulated relationship is not a business estimate or a recommendation for an optimal discount.
 
 ## Run
