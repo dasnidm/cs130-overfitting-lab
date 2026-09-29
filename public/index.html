@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore overfitting with simulated retail sales. Adjust sample size, polynomial degree, and noise; compare training and test prediction errors.">
+  <meta name="theme-color" content="#184d3d">
+  <title>Sales Forecast Lab · CS130</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#controls">Skip to simulation</a>
+  <header class="topbar wrap">
+    <a class="brand" href="/" aria-label="Sales Forecast Lab home"><span class="brand-icon" aria-hidden="true">s<span>/</span>f</span> Sales Forecast Lab</a>
+    <nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="https://github.com/dasnidm/cs130-overfitting-lab" target="_blank" rel="noreferrer">Source code <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main class="wrap">
+    <section class="intro" aria-labelledby="title">
+      <div><p class="eyebrow">CS130 / COMPUTATIONAL DEMONSTRATION</p><h1 id="title">A better fit.<br><em>A worse forecast?</em></h1></div>
+      <div class="intro-aside"><span class="badge"><span aria-hidden="true">●</span> SYNTHETIC DATA</span><p>When does a sales model start learning the noise? Turn up the complexity and see what happens to predictions on new data.</p><p class="small">Inspired by HUMANA’s clearance sales in Berlin. No actual HUMANA sales records are used.</p></div>
+    </section>
+
+    <section class="controls panel" id="controls" aria-labelledby="controls-title">
+      <div class="section-heading"><h2 id="controls-title"><span class="step">01</span> Set up the experiment</h2><div class="control-actions"><span class="seed">Seed <output id="seed-value">130</output></span><button id="resample" class="button" type="button">New sample <span aria-hidden="true">↻</span></button><button id="reset" class="text-button" type="button">Reset</button></div></div>
+      <div class="sliders">
+        <div class="slider-field"><div class="field-heading"><label for="sample-size">Training observations</label><output for="sample-size" id="n-value">80</output></div><input id="sample-size" type="range" min="20" max="160" step="1" value="80" aria-describedby="n-help"><div class="range-labels"><span>20</span><span>160</span></div><p id="n-help">How many simulated sales days the model learns from.</p></div>
+        <div class="slider-field"><div class="field-heading"><label for="degree">Model complexity</label><output for="degree" id="degree-value">8</output></div><input id="degree" type="range" min="1" max="12" step="1" value="8" aria-describedby="degree-help"><div class="range-labels"><span>Linear</span><span>Degree 12</span></div><p id="degree-help">Higher polynomial degrees allow more bends in the curve.</p></div>
+        <div class="slider-field"><div class="field-heading"><label for="noise">Random variation</label><output for="noise" id="noise-value">€140</output></div><input id="noise" type="range" min="0" max="250" step="10" value="140" aria-describedby="noise-help"><div class="range-labels"><span>€0</span><span>€250</span></div><p id="noise-help">Noise standard deviation: sales variation the model cannot predict.</p></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="results-title" class="results">
+      <div class="section-heading results-heading"><h2 id="results-title"><span class="step">02</span> Compare fit and forecast</h2><p id="status" role="status" aria-live="polite">Generating simulation…</p></div>
+      <div id="error-message" class="error" role="alert" hidden></div>
+      <div class="chart-grid">
+        <article class="panel chart-panel"><div class="chart-heading"><div><p class="eyebrow">THE FIT</p><h3>Learning the sales pattern</h3></div><span class="degree-pill" id="degree-pill">Degree 8</span></div><p class="chart-description">A single simulated sample. Change complexity without changing the data.</p><div id="fit-chart" class="chart" aria-live="off"></div><div class="legend"><span><i class="dot green"></i>Training days</span><span><i class="line green"></i>Fitted model</span><span><i class="line truth"></i>True pattern</span></div><label class="check"><input id="show-test" type="checkbox"> Show 80 test days <span>(of 2,000 scored)</span></label><p id="clipping-note" class="small chart-note"></p></article>
+        <article class="panel chart-panel"><div class="chart-heading"><div><p class="eyebrow">THE FORECAST</p><h3>Does a closer fit help?</h3></div></div><div class="chart-options"><div class="segmented" role="group" aria-label="Error comparison"><button type="button" id="single-mode" aria-pressed="true">One sample</button><button type="button" id="average-mode" aria-pressed="false">50-sample average</button></div><label class="check compact"><input type="checkbox" id="log-scale"> Log scale</label></div><div id="error-chart" class="chart" aria-live="off"></div><div class="legend"><span><i class="line green"></i>Training RMSE</span><span><i class="line orange dashed"></i>Test RMSE</span></div><p class="small chart-note" id="mode-note">Both errors use the same sample at every degree. Lower RMSE is better.</p></article>
+      </div>
+      <div class="metrics" aria-label="Errors at the selected degree"><div><span>TRAINING RMSE</span><strong id="train-metric">—</strong><small>Error on data used to fit</small></div><div><span>TEST RMSE</span><strong id="test-metric" class="orange-text">—</strong><small>Error on independent new days</small></div><div class="reading"><span id="reading-label">WHAT TO NOTICE</span><p id="interpretation">Calculating…</p></div></div>
+      <div class="results-bottom"><p class="small">A U-shape is a pattern to investigate, not a guaranteed outcome for every sample or setting.</p><div class="actions"><button class="button" type="button" id="share">Copy this experiment <span aria-hidden="true">↗</span></button><button class="button dark" type="button" id="download" disabled>Download run <span aria-hidden="true">↓</span></button></div></div>
+      <details class="data-table"><summary>View the exact RMSE values</summary><div class="table-scroll"><table><caption id="table-caption">RMSE by polynomial degree (euros)</caption><thead><tr><th scope="col">Degree</th><th scope="col">Training RMSE</th><th scope="col">Test RMSE</th></tr></thead><tbody id="metric-table"></tbody></table></div></details>
+    </section>
+
+    <section class="method" id="how-it-works" aria-labelledby="method-title"><div><p class="eyebrow">UNDER THE HOOD</p><h2 id="method-title">Fit the past.<br>Check on something new.</h2><p>The same idea matters for HUMANA: evaluate a sales forecast on later campaigns before relying on it for planning.</p></div><div class="method-content"><details open><summary>What is this experiment showing?</summary><p>Each model is an ordinary least squares polynomial. Increasing its degree adds terms, so training RMSE cannot increase on the same data (apart from numerical rounding). Extra flexibility can also fit random fluctuations, raising error on independent test data.</p><p>The 50-sample view averages the RMSE at each degree over 50 independently generated training/test pairs. The fitted-curve panel continues to show the first sample. This reduces sampling noise in the error comparison; it does not force a U-shape.</p></details><details><summary>Where do the numbers come from?</summary><p>Discounts are drawn uniformly from 10% to 80%. The assumed mean revenue is <span class="formula">μ = 2200 + 400z − 950z²</span>, where <span class="formula">z = (discount − 45) / 35</span>. Each day's revenue is <span class="formula">y = μ + ε</span>, with independent normal noise of standard deviation σ.</p><p>This quadratic relationship is a teaching assumption. It was not estimated from HUMANA data and cannot identify a real optimal discount. Test data come from the same distribution as training data; real promotions can involve changing inventory, timing, and customer demand.</p><p>All 2,000 test observations are used to compute each test RMSE. The metric is <span class="formula">√[Σ(y − ŷ)² / n]</span>. No test outcome is used in fitting. The test curve is for demonstration; choosing a production model from it would require another untouched test set.</p></details><details><summary>Try these comparisons</summary><ol><li>Keep the sample fixed and move model complexity from 1 to 12. Compare the two error curves.</li><li>Switch to the 50-sample average, then increase the training sample size. Does the cost of extra flexibility change?</li><li>Set random variation to €0. A quadratic model can now recover the assumed truth; a rising test-error curve need not appear.</li></ol></details><details><summary>Reproduce or save a result</summary><p>“New sample” changes the random seed. “Reset” restores the starting settings. “Copy this experiment” copies a URL with the settings and seed. “Download run” saves those settings, all observations for the displayed sample, its fitted coefficients, and both error tables as JSON. Run files can document what the app actually showed.</p></details></div></section>
+  </main>
+  <footer class="wrap"><div><strong>Sales Forecast Lab</strong><p>CS130 · Component 2 · Overfitting</p></div><div class="footer-notes"><p>Reference: James, G., Witten, D., Hastie, T., &amp; Tibshirani, R. (2021). <em>An introduction to statistical learning: With applications in R</em> (2nd ed., §2.2, pp. 31–36). Springer. <a href="https://doi.org/10.1007/978-1-0716-1418-1" target="_blank" rel="noreferrer">Book ↗</a></p><p>AI use: ChatGPT assisted with the simulation design, code, interface, and explanations. All sales data are synthetic.</p></div></footer>
+  <noscript><p class="wrap">Please enable JavaScript to run this simulation.</p></noscript>
+</body>
+</html>
